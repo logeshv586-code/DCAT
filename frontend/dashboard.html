@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DCAT - Dashboard</title>
+    <meta name="description" content="Generate dealership creatives in bulk">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="dashboard-page">
+    <!-- top bar -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="logo-mark small">DCAT</span>
+            <h2>Creative Generator</h2>
+        </div>
+        <div class="topbar-right">
+            <span id="userGreeting" class="greeting"></span>
+            <button id="logoutBtn" class="btn-ghost">Logout</button>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <!-- left panel: controls -->
+        <section class="controls-panel">
+            <div class="card">
+                <h3 class="card-title">
+                    <span class="step-num">1</span>
+                    Select Brand
+                </h3>
+                <select id="accountSelect" class="select-input">
+                    <option value="">-- Choose a brand --</option>
+                </select>
+            </div>
+
+            <div class="card" id="dealerCard" style="display:none;">
+                <h3 class="card-title">
+                    <span class="step-num">2</span>
+                    Select Dealerships
+                </h3>
+                <div class="dealer-controls">
+                    <label class="checkbox-row select-all-row">
+                        <input type="checkbox" id="selectAllDealers">
+                        <span>Select All</span>
+                    </label>
+                    <div class="divider"></div>
+                    <div id="dealerList" class="dealer-list"></div>
+                </div>
+            </div>
+
+            <div class="card" id="assetCard" style="display:none;">
+                <h3 class="card-title">
+                    <span class="step-num">3</span>
+                    Logo Options
+                </h3>
+                <div class="logo-toggle-row">
+                    <label class="toggle-label">
+                        <span>Enable Logo</span>
+                        <label class="switch">
+                            <input type="checkbox" id="logoToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </label>
+                </div>
+                <div id="logoOptions" class="logo-options" style="display:none;">
+                    <label class="radio-row">
+                        <input type="radio" name="logoVariant" value="dark" checked>
+                        <span>Dark Logo</span>
+                    </label>
+                    <label class="radio-row">
+                        <input type="radio" name="logoVariant" value="light">
+                        <span>Light Logo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="card" id="uploadCard" style="display:none;">
+                <h3 class="card-title">
+                    <span class="step-num">4</span>
+                    Background Image
+                </h3>
+                <div id="dropZone" class="drop-zone">
+                    <div class="drop-zone-inner">
+                        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 16V4m0 0L8 8m4-4l4 4"/>
+                            <path d="M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
+                        </svg>
+                        <p>Drag & drop an image here</p>
+                        <span class="drop-hint">or click to browse (JPG / PNG)</span>
+                    </div>
+                    <input type="file" id="bgFileInput" accept=".jpg,.jpeg,.png" style="display:none;">
+                </div>
+                <div id="bgPreviewWrap" class="bg-preview-wrap" style="display:none;">
+                    <img id="bgPreview" class="bg-preview" alt="Background preview">
+                    <button id="removeBg" class="btn-icon" title="Remove image">&times;</button>
+                </div>
+            </div>
+
+            <div class="card" id="formatCard" style="display:none;">
+                <h3 class="card-title">
+                    <span class="step-num">5</span>
+                    Output Format
+                </h3>
+                <div class="format-options">
+                    <label class="format-option">
+                        <input type="radio" name="outputFormat" value="square" checked>
+                        <div class="format-box">
+                            <div class="format-preview square-preview"></div>
+                            <span>Square</span>
+                            <small>1080 × 1080</small>
+                        </div>
+                    </label>
+                    <label class="format-option">
+                        <input type="radio" name="outputFormat" value="portrait">
+                        <div class="format-box">
+                            <div class="format-preview portrait-preview"></div>
+                            <span>Portrait</span>
+                            <small>1080 × 1350</small>
+                        </div>
+                    </label>
+                    <label class="format-option">
+                        <input type="radio" name="outputFormat" value="story">
+                        <div class="format-box">
+                            <div class="format-preview story-preview"></div>
+                            <span>Story</span>
+                            <small>1080 × 1920</small>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="card" id="generateCard" style="display:none;">
+                <button id="generateBtn" class="btn-generate" disabled>
+                    <span class="btn-text">Generate Creatives</span>
+                    <span class="btn-loader" style="display:none;">
+                        <span class="spinner"></span> Processing...
+                    </span>
+                </button>
+                <div id="progressWrap" class="progress-wrap" style="display:none;">
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                    <span id="progressText" class="progress-text">Generating...</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- right panel: results -->
+        <section class="results-panel" id="resultsPanel" style="display:none;">
+            <div class="results-header">
+                <h3>Generated Creatives</h3>
+                <button id="downloadAllBtn" class="btn-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M12 4v12m0 0l-4-4m4 4l4-4"/>
+                        <path d="M4 18h16"/>
+                    </svg>
+                    Download All (ZIP)
+                </button>
+            </div>
+            <div id="resultsGrid" class="results-grid"></div>
+        </section>
+    </main>
+
+    <!-- fullscreen preview modal -->
+    <div id="previewModal" class="modal" style="display:none;">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button id="closeModal" class="modal-close">&times;</button>
+            <img id="modalImage" class="modal-image" alt="Creative preview">
+            <div class="modal-actions">
+                <a id="modalDownload" href="#" download class="btn-primary">Download</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
