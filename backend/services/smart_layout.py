@@ -10,7 +10,7 @@ except ImportError:
 
 # Some constants for the layout logic
 SAFE_ZONE = 0.25       # Reserve bottom 25% for the panel
-BUFFER_ZONE = 0.10     # Extra buffer area above the panel
+BUFFER_ZONE = 0.15     # Extra buffer area above the panel
 RISK_THRESHOLD = 0.15  # If score is above this, area is too busy
 VERY_LOW_RISK_THRESHOLD = 0.02
 
