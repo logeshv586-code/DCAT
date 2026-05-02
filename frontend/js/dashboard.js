@@ -1,29 +1,30 @@
-// dashboard.js — main application logic for the creative generator
+// Main logic for the creative generator dashboard
 (function () {
     var API = window.location.origin;
     var TOKEN = localStorage.getItem("dcat_token");
     var USERNAME = localStorage.getItem("dcat_username");
 
-    // redirect if not logged in
+    // If not logged in, redirect back to login page
     if (!TOKEN) {
         window.location.href = "index.html";
         return;
     }
 
-    // --- setup ---
+    // --- Basic setup ---
     document.getElementById("userGreeting").textContent = "Hi, " + USERNAME;
 
     document.getElementById("logoutBtn").addEventListener("click", function () {
+        // Clear localStorage and go back to login
         localStorage.removeItem("dcat_token");
         localStorage.removeItem("dcat_username");
         window.location.href = "index.html";
     });
 
-    // track state
+    // Track some state for the app
     var selectedFile = null;
     var generatedResults = [];
 
-    // --- references to DOM elements ---
+    // --- Grab references to all the DOM elements we'll need ---
     var accountSelect = document.getElementById("accountSelect");
     var dealerCard = document.getElementById("dealerCard");
     var dealerList = document.getElementById("dealerList");
@@ -50,14 +51,15 @@
     var modalImage = document.getElementById("modalImage");
     var modalDownload = document.getElementById("modalDownload");
 
-    // helper for API calls
+    // Helper function to make API calls with the auth token
     function apiFetch(url, options) {
         options = options || {};
         options.headers = options.headers || {};
         options.headers["Authorization"] = "Bearer " + TOKEN;
+
         return fetch(API + url, options).then(function (res) {
             if (res.status === 401) {
-                // token expired
+                // Token expired, log user out
                 localStorage.removeItem("dcat_token");
                 window.location.href = "index.html";
                 return;
@@ -66,12 +68,13 @@
         });
     }
 
+    // Helper to show a card element with a nice animation
     function showCard(card) {
         card.style.display = "block";
         card.classList.add("visible");
     }
 
-    // --- step 1: load accounts ---
+    // --- Step 1: Load the list of accounts (brands) ---
     apiFetch("/api/accounts")
         .then(function (res) { return res.json(); })
         .then(function (accounts) {
@@ -83,12 +86,13 @@
             });
         });
 
-    // when brand changes, load its dealers
+    // When user selects a brand, load its dealerships
     accountSelect.addEventListener("change", function () {
         var accountId = accountSelect.value;
-        dealerList.innerHTML = "";
+        dealerList.innerHTML = ""; // Clear any existing dealers
         selectAllDealers.checked = false;
 
+        // If they unselected, hide all the next steps
         if (!accountId) {
             dealerCard.style.display = "none";
             assetCard.style.display = "none";
@@ -98,6 +102,7 @@
             return;
         }
 
+        // Fetch dealerships for the selected brand
         apiFetch("/api/accounts/" + accountId + "/dealers")
             .then(function (res) { return res.json(); })
             .then(function (dealers) {
@@ -110,6 +115,7 @@
                     dealerList.appendChild(label);
                 });
 
+                // Show all the next steps
                 showCard(dealerCard);
                 showCard(assetCard);
                 showCard(uploadCard);
@@ -119,7 +125,7 @@
             });
     });
 
-    // select all checkbox
+    // Select all dealerships checkbox
     selectAllDealers.addEventListener("change", function () {
         var checked = selectAllDealers.checked;
         var cbs = dealerList.querySelectorAll(".dealer-cb");
@@ -127,7 +133,7 @@
         updateGenerateBtn();
     });
 
-    // individual dealer checkboxes
+    // When an individual dealer checkbox is changed
     dealerList.addEventListener("change", function (e) {
         if (e.target.classList.contains("dealer-cb")) {
             var all = dealerList.querySelectorAll(".dealer-cb");
@@ -137,14 +143,14 @@
         }
     });
 
-    // --- step 3: logo toggle ---
+    // --- Step 3: Logo toggle ---
     logoToggle.addEventListener("change", function () {
         logoOptions.style.display = logoToggle.checked ? "flex" : "none";
     });
 
-    // --- step 4: background upload ---
+    // --- Step 4: Background image upload ---
     dropZone.addEventListener("click", function () {
-        bgFileInput.click();
+        bgFileInput.click(); // Trigger file picker when clicking the drop zone
     });
 
     dropZone.addEventListener("dragover", function (e) {
@@ -171,6 +177,7 @@
         }
     });
 
+    // Handle the selected file
     function handleFileSelect(file) {
         var ext = file.name.split(".").pop().toLowerCase();
         if (["jpg", "jpeg", "png"].indexOf(ext) === -1) {
@@ -189,6 +196,7 @@
         updateGenerateBtn();
     }
 
+    // Remove the selected background
     removeBg.addEventListener("click", function () {
         selectedFile = null;
         bgPreview.src = "";
@@ -198,7 +206,7 @@
         updateGenerateBtn();
     });
 
-    // --- step 6: generate ---
+    // --- Step 6: Generate creatives ---
     function getSelectedDealerIds() {
         var cbs = dealerList.querySelectorAll(".dealer-cb:checked");
         return Array.from(cbs).map(function (cb) { return cb.value; });
@@ -206,6 +214,7 @@
 
     function updateGenerateBtn() {
         var ids = getSelectedDealerIds();
+        // Only enable generate button if at least one dealer is selected AND we have a file
         generateBtn.disabled = !(ids.length > 0 && selectedFile);
     }
 
@@ -219,14 +228,14 @@
             logoVal = document.querySelector('input[name="logoVariant"]:checked').value;
         }
 
-        // build form data
+        // Build the form data for the API call
         var formData = new FormData();
         formData.append("background", selectedFile);
         formData.append("dealer_ids", ids.join(","));
         formData.append("output_format", fmt);
         formData.append("logo_enabled", logoVal);
 
-        // UI: show progress
+        // Update UI to show progress
         generateBtn.querySelector(".btn-text").style.display = "none";
         generateBtn.querySelector(".btn-loader").style.display = "inline-flex";
         generateBtn.disabled = true;
@@ -249,7 +258,7 @@
                 generatedResults = data.results || [];
                 renderResults();
 
-                // reset progress after a moment
+                // Hide progress after a short delay
                 setTimeout(function () {
                     progressWrap.style.display = "none";
                     progressFill.style.width = "0%";
@@ -260,6 +269,7 @@
                 progressFill.style.width = "0%";
             })
             .finally(function () {
+                // Reset button state
                 generateBtn.querySelector(".btn-text").style.display = "inline";
                 generateBtn.querySelector(".btn-loader").style.display = "none";
                 generateBtn.disabled = false;
@@ -267,7 +277,7 @@
             });
     });
 
-    // --- step 7: results ---
+    // --- Step 7: Display results ---
     function renderResults() {
         resultsGrid.innerHTML = "";
 
@@ -280,6 +290,7 @@
 
         generatedResults.forEach(function (r) {
             if (r.error) {
+                // Show error message for this dealer
                 var errDiv = document.createElement("div");
                 errDiv.className = "result-error";
                 errDiv.textContent = r.dealer_name + ": " + r.error;
@@ -299,12 +310,12 @@
                 '<a href="' + API + "/api/download/" + r.output_filename + '" download>Download</a>' +
                 "</div>";
 
-            // click image to preview
+            // Click image to open preview modal
             card.querySelector("img").addEventListener("click", function () {
                 openPreview(imgUrl, r.output_filename);
             });
 
-            // stop download link from triggering the preview
+            // Stop download link from opening the preview
             card.querySelector("a").addEventListener("click", function (e) {
                 e.stopPropagation();
             });
@@ -313,7 +324,7 @@
         });
     }
 
-    // preview modal
+    // --- Preview modal ---
     function openPreview(imgUrl, filename) {
         modalImage.src = imgUrl;
         modalDownload.href = API + "/api/download/" + filename;
@@ -329,7 +340,7 @@
         previewModal.style.display = "none";
     });
 
-    // download all as ZIP
+    // Download all as a ZIP file
     downloadAllBtn.addEventListener("click", function () {
         var filenames = generatedResults
             .filter(function (r) { return !r.error; })
@@ -347,7 +358,7 @@
         })
             .then(function (res) { return res.blob(); })
             .then(function (blob) {
-                // trigger download
+                // Trigger download
                 var url = URL.createObjectURL(blob);
                 var a = document.createElement("a");
                 a.href = url;
@@ -362,8 +373,9 @@
             });
     });
 
-    // listen for format changes (update button state)
+    // Listen for changes in output format to update button state
     document.querySelectorAll('input[name="outputFormat"]').forEach(function (r) {
         r.addEventListener("change", updateGenerateBtn);
     });
 })();
+

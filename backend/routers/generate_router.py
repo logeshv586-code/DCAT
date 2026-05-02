@@ -18,12 +18,12 @@ from services.compositor import compose_creative
 
 router = APIRouter(prefix="/api", tags=["generate"])
 
-# thread pool for parallel batch processing
+# Thread pool for parallel processing when generating multiple creatives
 _pool = ThreadPoolExecutor(max_workers=4)
 
 
+# Helper function to save an uploaded image to disk
 def _save_upload(file: UploadFile) -> str:
-    """Save uploaded file to disk, return the filename."""
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
@@ -36,26 +36,27 @@ def _save_upload(file: UploadFile) -> str:
     return unique_name
 
 
+# Figure out the full path to a dealer's panel folder
 def _resolve_panel_dir(dealer: Dealership, brand_slug: str) -> str:
-    """Figure out the filesystem path to a dealer's panel folder."""
     brand_folder = BRAND_FOLDERS.get(brand_slug)
     if not brand_folder:
         raise HTTPException(status_code=400, detail=f"Unknown brand slug: {brand_slug}")
     return os.path.join(DEALERSHIP_PANELS_DIR, brand_folder, dealer.folder_name)
 
 
+# Pick which template PNG to use based on output format
 def _pick_template(panel_dir: str, fmt: str) -> str:
-    """Pick template.png for square, template1.png for portrait/story."""
+    # Use template.png for square, template1.png for portrait/story
     if fmt == "square":
         path = os.path.join(panel_dir, "template.png")
     else:
         path = os.path.join(panel_dir, "template1.png")
 
-    # fallback: if the preferred one doesn't exist, use the other
+    # If the preferred template doesn't exist, try the other one
     if not os.path.exists(path):
-        alt = os.path.join(panel_dir, "template1.png" if fmt == "square" else "template.png")
-        if os.path.exists(alt):
-            return alt
+        alt_path = os.path.join(panel_dir, "template1.png" if fmt == "square" else "template.png")
+        if os.path.exists(alt_path):
+            return alt_path
         raise HTTPException(status_code=500, detail=f"No panel template found in {panel_dir}")
     return path
 
@@ -63,19 +64,19 @@ def _pick_template(panel_dir: str, fmt: str) -> str:
 @router.post("/generate")
 def generate_creatives(
     background: UploadFile = File(...),
-    dealer_ids: str = Form(...),         # comma-separated ids
-    output_format: str = Form("square"), # square | portrait | story
-    logo_enabled: str = Form("off"),     # off | dark | light
+    dealer_ids: str = Form(...),         # Comma separated list of dealer IDs
+    output_format: str = Form("square"), # Output format: square, portrait, story
+    logo_enabled: str = Form("off"),     # Whether to use logo and which variant (dark/light)
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    # validate format
+    # Validate that the output format is valid
     if output_format not in OUTPUT_FORMATS:
         raise HTTPException(status_code=400, detail=f"Invalid format. Choose from: {list(OUTPUT_FORMATS.keys())}")
 
     target_w, target_h = OUTPUT_FORMATS[output_format]
 
-    # parse dealer ids
+    # Parse the comma-separated dealer IDs
     try:
         ids = [int(x.strip()) for x in dealer_ids.split(",") if x.strip()]
     except ValueError:
@@ -84,21 +85,21 @@ def generate_creatives(
     if not ids:
         raise HTTPException(status_code=400, detail="Select at least one dealership")
 
-    # save the background image
+    # Save the uploaded background image
     bg_filename = _save_upload(background)
     bg_path = os.path.join(UPLOADS_DIR, bg_filename)
 
-    # fetch dealers from db
+    # Fetch the selected dealerships from the DB
     dealers = db.query(Dealership).filter(Dealership.id.in_(ids)).all()
     if not dealers:
         raise HTTPException(status_code=404, detail="No matching dealerships found")
 
-    # we need the brand slug for each dealer to find the right panel folder
+    # Cache for account slugs so we don't hit the DB multiple times for the same account
     account_cache = {}
     results = []
 
-    def _process_one_dealer(dealer):
-        """Process a single dealer — runs in thread pool."""
+    # This function processes a single dealership (runs in thread pool)
+    def process_dealer(dealer):
         if dealer.account_id not in account_cache:
             acct = db.query(Account).get(dealer.account_id)
             account_cache[dealer.account_id] = acct.slug if acct else "unknown"
@@ -107,7 +108,7 @@ def generate_creatives(
         panel_dir = _resolve_panel_dir(dealer, brand_slug)
         template_path = _pick_template(panel_dir, output_format)
 
-        # figure out logo path if needed
+        # Figure out logo path if needed
         logo_path = None
         if logo_enabled in ("dark", "light"):
             logo_file = f"logo-{logo_enabled}.png"
@@ -115,11 +116,11 @@ def generate_creatives(
             if os.path.exists(candidate):
                 logo_path = candidate
 
-        # generate output filename
+        # Generate a unique filename for the output
         out_name = f"{uuid.uuid4().hex}.jpg"
         out_path = os.path.join(OUTPUT_DIR, out_name)
 
-        # do the actual compositing
+        # Run the actual image compositing
         compose_creative(
             bg_path=bg_path,
             panel_path=template_path,
@@ -134,13 +135,14 @@ def generate_creatives(
             "output_filename": out_name,
         }
 
-    # batch process — use thread pool for parallelism
+    # Process all selected dealerships
     if len(dealers) == 1:
-        # no need for threading overhead on a single item
-        info = _process_one_dealer(dealers[0])
+        # For just one dealer, no need for thread overhead
+        info = process_dealer(dealers[0])
         results.append(info)
     else:
-        futures = {_pool.submit(_process_one_dealer, d): d for d in dealers}
+        # For multiple dealers, use the thread pool
+        futures = {_pool.submit(process_dealer, d): d for d in dealers}
         for future in as_completed(futures):
             try:
                 info = future.result()
@@ -153,7 +155,7 @@ def generate_creatives(
                     "error": str(exc),
                 })
 
-    # save records to db
+    # Save all successful generations to the database
     for r in results:
         if "error" not in r:
             record = GeneratedCreative(
@@ -183,13 +185,13 @@ def download_file(filename: str):
 
 @router.post("/download-zip")
 def download_zip(filenames: list[str]):
-    """Package multiple generated images into a single ZIP."""
+    # Create a zip file in memory with all the selected images
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for i, fname in enumerate(filenames):
             path = os.path.join(OUTPUT_DIR, fname)
             if os.path.exists(path):
-                # give them nicer names in the zip
+                # Give the files nicer names in the zip
                 arcname = f"creative_{i+1}.jpg"
                 zf.write(path, arcname)
 
@@ -199,3 +201,4 @@ def download_zip(filenames: list[str]):
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=creatives.zip"},
     )
+

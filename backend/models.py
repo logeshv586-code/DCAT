@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 
@@ -33,7 +33,7 @@ class Dealership(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
     name = Column(String(150), nullable=False)
-    folder_name = Column(String(100), nullable=False)  # actual folder under the brand
+    folder_name = Column(String(100), nullable=False)  # The actual folder name on disk
 
     account = relationship("Account", back_populates="dealerships")
     creatives = relationship("GeneratedCreative", back_populates="dealership")
@@ -52,3 +52,4 @@ class GeneratedCreative(Base):
 
     user = relationship("User", back_populates="creatives")
     dealership = relationship("Dealership", back_populates="creatives")
+

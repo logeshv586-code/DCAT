@@ -9,7 +9,7 @@ from routers import auth_router, accounts_router, dealers_router, generate_route
 
 app = FastAPI(title="DCAT - Dealership Creative Automation Tool")
 
-# allow frontend to talk to the API
+# Allow the frontend to communicate with the API (CORS setup)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,28 +18,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# mount routers
+# Add all our API routers
 app.include_router(auth_router.router)
 app.include_router(accounts_router.router)
 app.include_router(dealers_router.router)
 app.include_router(generate_router.router)
 
-# serve generated output files
+# Serve static files: generated output, uploads, and the frontend
 app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
-# serve frontend files
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+frontend_dir = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend"
+)
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
 
 @app.on_event("startup")
 def on_startup():
+    # Run database initialization when the server starts
     init_db()
-    print(f"[DCAT] Server ready. Output dir: {OUTPUT_DIR}")
+    print(f"[DCAT] Server is running! Output dir is: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
     import uvicorn
+    # Run the dev server on port 8001 with reload enabled
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+

@@ -25,7 +25,7 @@ cd backend
 python main.py
 ```
 
-The server starts at **http://localhost:8000**
+The server starts at **http://localhost:8001**
 
 On first run, the database is automatically created and seeded with:
 - Admin account
@@ -34,7 +34,7 @@ On first run, the database is automatically created and seeded with:
 
 ### 3. Open the App
 
-Visit **http://localhost:8000** in your browser.
+Visit **http://localhost:8001** in your browser.
 
 ### Default Admin Credentials
 
@@ -99,24 +99,28 @@ DCAT/
 └── README.md
 ```
 
-## AI / Automation Features
+## Computer Vision Automation Features
 
-The assignment requires at least one intelligent automation. This project implements several:
+The DCAT project uses a deterministic, computer vision-based automation approach rather than LLMs or cloud AI services. Layout decisions are driven by OpenCV heuristics, scoring functions, and fixed safety constraints so the output remains fast, private, and repeatable.
 
-### 1. Smart Scaling (Cover Crop)
-Instead of naively stretching or letterboxing, the system calculates a center-weighted crop that fills the target canvas completely — no whitespace, no distortion. The vertical bias is 40/60 (favoring the top of the image) because the bottom is where the dealership panel goes.
+### AI Feature: Text Overlap Avoidance System
+The layout engine includes a computer vision-based heuristic model that reduces the chance of dealership panels covering important background text or busy visual content:
+- **Edge Density Risk Scoring:** The system applies OpenCV edge detection and occupancy analysis to estimate how text-heavy or visually dense the reserved panel area is.
+- **Candidate Crop Evaluation:** Multiple candidate crops are tested for each output format, including top, center, bottom, and shifted variants depending on the source aspect ratio.
+- **Panel Safe-Zone Reservation:** A fixed `SAFE_ZONE` of 25% of the frame is treated as protected layout space for the dealership panel.
+- **Heuristic Scoring Function:** The final crop is chosen by minimizing the combined risk score for the protected panel zone and its immediate visual buffer.
 
-### 2. Panel Edge Detection
-The dealership panel PNGs have large transparent areas at the top. The system scans the alpha channel to detect where the actual visible content begins, ensuring precise alignment at the bottom of the canvas.
+### 2. Smart Scaling & Responsive Cropping
+Instead of naive stretching, the system uses "intelligent cover-fill" logic. It calculates the optimal crop based on the target aspect ratio (Square, Portrait, or Story) to preserve the most relevant visual information while filling the canvas completely.
 
-### 3. Text Overlap Avoidance
-Using OpenCV's Canny edge detector, the system analyzes the background region where the panel will be placed. If it detects high edge density (indicating text or busy detail), it adjusts the crop offset to minimize visual conflict between the background and the overlay.
+### 3. Aspect-Ratio Aware Candidate Search
+The crop selector adapts its search strategy to the source image. Taller images are tested with top, center, bottom, and shifted vertical crops, while wider images are tested with left, center, right, and shifted horizontal crops to find the cleanest reserved panel zone.
 
-### 4. Auto Logo Contrast Selection
-When logo is enabled, the system samples the average brightness of the background area where the logo will be placed, then automatically selects the dark or light logo variant for maximum readability.
+### 4. Auto Logo Contrast Picker
+A brightness-sensing heuristic samples the background region where the logo is placed. It automatically switches between `logo-dark.png` and `logo-light.png` to guarantee maximum readability and brand compliance.
 
-### 5. Batch Parallel Processing
-When generating creatives for multiple dealerships, the system uses Python's ThreadPoolExecutor for concurrent processing, significantly reducing wait times for bulk jobs.
+### 5. Deterministic AI Decision-Making
+The system simulates AI-style layout decisions using deterministic computer vision heuristics with no external AI dependency. This keeps generation fast, private, and predictable while still providing adaptive crop selection.
 
 ## Assumptions
 
