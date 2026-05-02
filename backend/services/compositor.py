@@ -6,13 +6,28 @@ from services.smart_layout import find_optimal_crop
 def compose_creative(bg_path, panel_path, logo_path, output_path, target_size):
     target_w, target_h = target_size
 
-    # Step 1: Load background and smart crop it to the right size
+    # The panel takes up a specific safe zone at the bottom
+    # We will reserve this space so the main image fits exactly ABOVE it
+    safe_zone_ratio = 0.30 if target_h / target_w > 1.5 else 0.25
+    safe_zone_h = int(target_h * safe_zone_ratio)
+    content_h = target_h - safe_zone_h
+
+    # Step 1: Load background
     bg = Image.open(bg_path).convert("RGB")
 
-    # Find the optimal crop to avoid putting the panel over important content
-    crop_x, crop_y, crop_w, crop_h = find_optimal_crop(bg, target_w, target_h)
-    cropped = bg.crop((crop_x, crop_y, crop_x + crop_w, crop_y + crop_h))
-    canvas = cropped.resize((target_w, target_h), Image.LANCZOS)
+    # Create a blurred base canvas that fills the entire target size
+    from PIL import ImageFilter
+    full_crop_x, full_crop_y, full_crop_w, full_crop_h = find_optimal_crop(bg, target_w, target_h)
+    full_cropped = bg.crop((full_crop_x, full_crop_y, full_crop_x + full_crop_w, full_crop_y + full_crop_h))
+    canvas = full_cropped.resize((target_w, target_h), Image.LANCZOS).filter(ImageFilter.GaussianBlur(25))
+
+    # Now, find the optimal crop for the top "content" area, so the subject shrinks to fit above the panel
+    crop_x, crop_y, crop_w, crop_h = find_optimal_crop(bg, target_w, content_h)
+    content_cropped = bg.crop((crop_x, crop_y, crop_x + crop_w, crop_y + crop_h))
+    content_layer = content_cropped.resize((target_w, content_h), Image.LANCZOS)
+
+    # Paste the sharp, smaller image onto the top portion of the blurred canvas
+    canvas.paste(content_layer, (0, 0))
 
     # Step 2: Overlay the dealership panel
     panel = Image.open(panel_path).convert("RGBA")

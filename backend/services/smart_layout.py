@@ -79,12 +79,12 @@ def get_crop_region(
 
 
 # Score a specific crop candidate
-def _score_crop(gray_full, crop_box):
+def _score_crop(gray_full, crop_box, safe_zone=SAFE_ZONE):
     crop_x, crop_y, crop_w, crop_h = crop_box
 
     # How much of the bottom is the panel going to take?
-    panel_zone_h = max(1, int(round(crop_h * SAFE_ZONE)))
-    buffer_zone_h = max(panel_zone_h, int(round(crop_h * (SAFE_ZONE + BUFFER_ZONE))))
+    panel_zone_h = max(1, int(round(crop_h * safe_zone)))
+    buffer_zone_h = max(panel_zone_h, int(round(crop_h * (safe_zone + BUFFER_ZONE))))
 
     panel_top = crop_y + crop_h - panel_zone_h
     buffer_top = crop_y + crop_h - buffer_zone_h
@@ -107,22 +107,38 @@ def find_optimal_crop(bg_img, target_w, target_h):
     gray_full = np.array(bg_img.convert("L"))
     src_ratio = img_w / img_h
     tgt_ratio = target_w / target_h
+    
+    # Adjust SAFE_ZONE based on format
+    # For Story (1080x1920), panel is proportionally taller, increase SAFE_ZONE to 0.30
+    current_safe_zone = 0.30 if target_h / target_w > 1.5 else SAFE_ZONE
 
     # Different positions to try based on image aspect ratio
     if src_ratio > tgt_ratio:
         positions = [
             {"name": "left", "vertical_bias": 0.5, "horizontal_bias": 0.0},
-            {"name": "left_shifted", "vertical_bias": 0.5, "horizontal_bias": 0.2},
+            {"name": "left_shifted_1", "vertical_bias": 0.5, "horizontal_bias": 0.1},
+            {"name": "left_shifted_2", "vertical_bias": 0.5, "horizontal_bias": 0.2},
+            {"name": "left_shifted_3", "vertical_bias": 0.5, "horizontal_bias": 0.3},
+            {"name": "center_left", "vertical_bias": 0.5, "horizontal_bias": 0.4},
             {"name": "center", "vertical_bias": 0.5, "horizontal_bias": 0.5},
-            {"name": "right_shifted", "vertical_bias": 0.5, "horizontal_bias": 0.8},
+            {"name": "center_right", "vertical_bias": 0.5, "horizontal_bias": 0.6},
+            {"name": "right_shifted_3", "vertical_bias": 0.5, "horizontal_bias": 0.7},
+            {"name": "right_shifted_2", "vertical_bias": 0.5, "horizontal_bias": 0.8},
+            {"name": "right_shifted_1", "vertical_bias": 0.5, "horizontal_bias": 0.9},
             {"name": "right", "vertical_bias": 0.5, "horizontal_bias": 1.0},
         ]
     else:
         positions = [
             {"name": "top", "vertical_bias": 0.0, "horizontal_bias": 0.5},
-            {"name": "top_shifted", "vertical_bias": 0.18, "horizontal_bias": 0.5},
+            {"name": "top_shifted_1", "vertical_bias": 0.1, "horizontal_bias": 0.5},
+            {"name": "top_shifted_2", "vertical_bias": 0.2, "horizontal_bias": 0.5},
+            {"name": "top_shifted_3", "vertical_bias": 0.3, "horizontal_bias": 0.5},
+            {"name": "center_top", "vertical_bias": 0.4, "horizontal_bias": 0.5},
             {"name": "center", "vertical_bias": 0.5, "horizontal_bias": 0.5},
-            {"name": "bottom_shifted", "vertical_bias": 0.82, "horizontal_bias": 0.5},
+            {"name": "center_bottom", "vertical_bias": 0.6, "horizontal_bias": 0.5},
+            {"name": "bottom_shifted_3", "vertical_bias": 0.7, "horizontal_bias": 0.5},
+            {"name": "bottom_shifted_2", "vertical_bias": 0.8, "horizontal_bias": 0.5},
+            {"name": "bottom_shifted_1", "vertical_bias": 0.9, "horizontal_bias": 0.5},
             {"name": "bottom", "vertical_bias": 1.0, "horizontal_bias": 0.5},
         ]
 
@@ -145,7 +161,7 @@ def find_optimal_crop(bg_img, target_w, target_h):
             continue
 
         seen_crops.add(crop_box)
-        total_risk, panel_risk, buffer_risk = _score_crop(gray_full, crop_box)
+        total_risk, panel_risk, buffer_risk = _score_crop(gray_full, crop_box, current_safe_zone)
         print(
             f"Evaluated {pos['name']} crop: total={total_risk:.4f}, "
             f"panel={panel_risk:.4f}, buffer={buffer_risk:.4f}"
@@ -162,7 +178,7 @@ def find_optimal_crop(bg_img, target_w, target_h):
     # Fallback to center crop if nothing else worked
     if best_crop is None:
         best_crop = get_crop_region(img_w, img_h, target_w, target_h)
-        best_score, _, _ = _score_crop(gray_full, best_crop)
+        best_score, _, _ = _score_crop(gray_full, best_crop, current_safe_zone)
 
     if best_score > RISK_THRESHOLD:
         print(
